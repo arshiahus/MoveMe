@@ -365,6 +365,17 @@ button,input,select,textarea{font:inherit;color:inherit}
 .field input[readonly]{opacity:.75;cursor:not-allowed}
 .btn[disabled]{opacity:.6;cursor:progress}
 .danger-badge{background:var(--coral-text);color:#fff}
+.nav-left{display:flex;align-items:center;gap:14px;min-width:0}
+.back-btn{display:inline-flex;align-items:center;gap:4px;height:38px;padding:0 12px 0 8px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:transparent;color:var(--on-navy);font-weight:700;font-size:15px;cursor:pointer}
+.back-btn:hover{background:rgba(255,255,255,.08)}
+.setup-top{display:flex;align-items:center}
+.mark{white-space:nowrap}
+@media (max-width: 560px){
+  .topbar .wrap{flex-wrap:wrap;row-gap:12px}
+  .topbar .nav-left{width:100%}
+  .topbar .top-actions{width:100%;justify-content:stretch;flex-wrap:nowrap;gap:8px}
+  .topbar .top-actions .btn{flex:1;padding:0 6px;height:38px;font-size:15px}
+}
 .foot{color:var(--muted);font-size:14px;border-top:1px solid var(--line);padding-top:18px;margin-top:8px}
 .foot button{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font-size:inherit}
 
@@ -1383,6 +1394,81 @@ document.addEventListener("change", e=>{
   if(el.dataset.todo){ state.done[el.dataset.todo] = true; save(); renderConfirmation(); const n=document.querySelector("[data-todo]"); (n||document.getElementById("toplan3")).focus({preventScroll:true}); return; }
   if(el.dataset.done){ state.done[el.dataset.done] = el.checked; rerender(); }
   else if(el.dataset.task){ state.picks[el.dataset.task] = el.value; rerender(); }
+});
+
+/* ---------- Back navigation ----------
+   Each screen change adds a browser history entry, so the browser's back arrow
+   (and swipe-back on phones) moves between Move Me screens instead of leaving
+   the site. A Back button in each header does the same thing. */
+let navPopping = false, navDepth = 0, curScreen = null;
+function navArgs(name, args){
+  if(name === "signin") return [args[0]];
+  if(name === "checkemail") return [args[0], args[1]];
+  return []; // other screens rebuild from the current state
+}
+function navWrap(name, fn){
+  return function(...args){
+    const r = fn.apply(this, args);
+    const entry = {mm:true, screen:name, args:navArgs(name, args)};
+    if(navPopping || curScreen === name){ entry.depth = navDepth; history.replaceState(entry, ""); }
+    else if(curScreen === null){ entry.depth = navDepth = 0; history.replaceState(entry, ""); }
+    else { entry.depth = ++navDepth; history.pushState(entry, ""); }
+    curScreen = name;
+    addBackButton();
+    return r;
+  };
+}
+renderLanding = navWrap("landing", renderLanding);
+renderSignIn = navWrap("signin", renderSignIn);
+renderProviderSignup = navWrap("provsignup", renderProviderSignup);
+renderProviderHome = navWrap("provhome", renderProviderHome);
+renderRegister = navWrap("register", renderRegister);
+renderSetup = navWrap("setup", renderSetup);
+renderReview = navWrap("review", renderReview);
+renderConfirmation = navWrap("confirmation", renderConfirmation);
+renderPlan = navWrap("plan", renderPlan);
+renderCheckEmail = navWrap("checkemail", renderCheckEmail);
+const SCREENS = {landing:renderLanding, signin:renderSignIn, provsignup:renderProviderSignup, provhome:renderProviderHome,
+  register:renderRegister, setup:renderSetup, review:renderReview, confirmation:renderConfirmation, plan:renderPlan, checkemail:renderCheckEmail};
+
+// Screens that need someone signed in fall back to the home page after sign out.
+function screenAllowed(name){
+  if(name === "setup") return state.signedIn;
+  if(name === "plan" || name === "review") return state.signedIn && !!state.move;
+  if(name === "confirmation") return state.signedIn && Object.keys(state.bookings||{}).length > 0;
+  if(name === "provhome") return !!state.provider;
+  return true;
+}
+function addBackButton(){
+  if(curScreen === "landing") return;
+  const header = document.querySelector("#app .setup-top, #app .topbar .wrap");
+  const mark = header && header.querySelector(".mark");
+  if(!mark || header.querySelector("[data-back]")) return;
+  const group = document.createElement("div");
+  group.className = "nav-left";
+  group.innerHTML = `<button type="button" class="back-btn" data-back><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>`;
+  mark.before(group);
+  group.appendChild(mark);
+}
+function navBack(){
+  if(navDepth > 0) history.back();
+  else { renderLanding(); window.scrollTo(0,0); }
+}
+document.addEventListener("click", e=>{ if(e.target.closest("[data-back]")) navBack(); });
+window.addEventListener("popstate", e=>{
+  const st = e.state;
+  if(!st || !st.mm) return;                       // e.g. the landing page's "How it works" links
+  if(st.screen === "landing" && curScreen === "landing") { navDepth = st.depth; return; }
+  if(document.querySelector("[data-draft]") && typeof syncDraft === "function") syncDraft();
+  const modal = document.getElementById("modal-root");
+  if(modal && modal.innerHTML.trim() && typeof closeConfirm === "function") closeConfirm();
+  navDepth = st.depth || 0;
+  navPopping = true;
+  try{
+    if(screenAllowed(st.screen) && SCREENS[st.screen]) SCREENS[st.screen](...(st.args||[]));
+    else renderLanding();
+  } finally { navPopping = false; }
+  window.scrollTo(0,0);
 });
 
 renderLanding();
