@@ -472,6 +472,16 @@ body{font-size:16px}h1,h2,h3{font-family:var(--sans);letter-spacing:-.025em;line
 </style><style id="provider-card-polish">
 .provider-inbox{background:transparent;border:0;padding:0}.provider-inbox> .provider-card-head h2{font-size:20px}.provider-inbox .request-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin:0 0 20px;padding:0;overflow-x:auto;flex-wrap:nowrap}.provider-inbox .request-tabs .btn{border:0;border-radius:0;background:transparent;color:var(--muted);padding:13px 16px;white-space:nowrap;border-bottom:3px solid transparent;box-shadow:none}.provider-inbox .request-tabs .btn[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--coral);background:transparent}.provider-inbox .service-request{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin:0 0 16px;box-shadow:0 4px 16px rgba(0,0,0,.04)}.provider-job-eyebrow{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.04em;margin:0 0 8px}.provider-job-heading h3{font-size:20px;margin:0 0 6px}.provider-job-heading .hint{margin:0}.provider-job-price strong{font-size:26px}.provider-job-route{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:20px 0;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.provider-job-route span{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.provider-job-route strong{font-size:15px}.provider-job-details summary{font-size:14px}.provider-job-details .request-details{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin:14px 0;gap:16px}.provider-job-details .request-details dt{font-size:12px}.provider-job-details .request-details dd{font-size:14px;margin-top:4px}.provider-job-scope{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:18px 0}.provider-job-scope h4{font-size:13px;margin:0 0 6px;color:var(--muted)}.provider-job-scope p{font-size:14px;margin:0;line-height:1.5}.provider-job-details .request-contact{font-size:14px;overflow-wrap:anywhere;padding-top:14px;border-top:1px solid var(--line)}.provider-inbox .request-actions{display:flex;justify-content:flex-end;gap:10px;padding-top:16px;margin-top:16px;border-top:1px solid var(--line)}
 @media(max-width:600px){.provider-inbox .service-request{padding:18px 16px}.provider-job-heading h3{font-size:17px}.provider-job-price strong{font-size:22px}.provider-job-route{grid-template-columns:1fr 1fr;gap:14px}.provider-job-route>div:first-child{grid-column:1/-1}.provider-job-scope{grid-template-columns:1fr;gap:14px}.provider-inbox .request-tabs .btn{padding:12px 10px;font-size:13px}.provider-job-heading{gap:12px}.provider-job-price .badge{font-size:11px}.provider-inbox .request-actions .btn{flex:1}}
+</style><style id="inventory-style">
+.inv-counts{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:14px 0 18px}
+.inv-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.inv-row label{font-size:15px;line-height:1.3}
+.inv-stepper{display:flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.inv-stepper input{width:52px;min-height:40px;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);border-radius:0;text-align:center;font:inherit;padding:0;background:transparent;color:var(--ink);-moz-appearance:textfield}
+.inv-stepper input::-webkit-outer-spin-button,.inv-stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.inv-btn{width:40px;min-height:40px;border:0;background:transparent;color:var(--ink);font-size:20px;line-height:1;cursor:pointer}.inv-btn:hover{background:var(--surface)}
+.inv-special{border:0;padding:0;margin:0;min-width:0}.inv-special legend{padding:0;margin-bottom:10px}
+.inv-estimate{font-weight:700;margin:4px 0 0}.inv-estimate:empty{display:none}
+@media(max-width:600px){.inv-counts{grid-template-columns:1fr}.inv-special .svc-checklist{grid-template-columns:1fr}}
 </style><style id="service-checklist-style">
 .svc-label{display:block;font-weight:700;margin-bottom:2px}.svc-hint{margin:0 0 10px}
 .svc-checklist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;margin:0 0 14px}
@@ -540,6 +550,49 @@ body{font-size:16px}h1,h2,h3{font-family:var(--sans);letter-spacing:-.025em;line
 
 <script>
 const ACCESS = {ground:["Ground floor, no stairs",1],elevator:["Elevator",1.05],stairs:["Stairs",1.12]};
+/* What the customer is moving. Weights are rough industry rules of thumb, used only for the estimated load. */
+const INVENTORY_COUNTS = [["boxes","Boxes",30],["bags","Bags or bins",15],["beds","Beds",150],["sofas","Sofas and sectionals",150],["dressers","Dressers and wardrobes",120],["tables","Tables and desks",80],["appliances","Large appliances",200]];
+const INVENTORY_SPECIAL = [["piano","Piano",500],["safe","Safe",300],["gym","Gym equipment",250],["artwork","Artwork or large mirrors",20],["heavy","Other item over 300 lb",350]];
+function hasInventory(inv){ return !!inv && (INVENTORY_COUNTS.some(([k])=>Number(inv[k])>0) || (inv.special||[]).length>0); }
+function inventoryWeight(inv){
+  if(!hasInventory(inv)) return 0;
+  const lb = INVENTORY_COUNTS.reduce((t,[k,,w])=>t+(Number(inv[k])||0)*w,0) + INVENTORY_SPECIAL.reduce((t,[k,,w])=>t+((inv.special||[]).includes(k)?w:0),0);
+  return Math.round(lb/50)*50;
+}
+function inventoryItemsText(inv){ return INVENTORY_COUNTS.filter(([k])=>Number(inv?.[k])>0).map(([k,l])=>`${l}: ${Number(inv[k])}`).join(" · "); }
+function inventorySpecialText(inv){ return INVENTORY_SPECIAL.filter(([k])=>(inv?.special||[]).includes(k)).map(([,l])=>l).join(", "); }
+function inventoryLoadText(inv){ const lb=inventoryWeight(inv); return lb ? `About ${lb.toLocaleString("en-US")} lb` : ""; }
+/* Definition-list rows for providers and customers; empty when nothing was entered. */
+function inventoryFacts(inv){
+  if(!hasInventory(inv)) return "";
+  const items=inventoryItemsText(inv), special=inventorySpecialText(inv), load=inventoryLoadText(inv);
+  return (items?`<div><dt>Items</dt><dd>${esc(items)}</dd></div>`:"")+(special?`<div><dt>Special items</dt><dd>${esc(special)}</dd></div>`:"")+(load?`<div><dt>Estimated load</dt><dd>${esc(load)}</dd></div>`:"");
+}
+function inventoryFields(inv){
+  inv = inv || {};
+  return `<details class="form-details inventory-details" ${hasInventory(inv)?"open":""}><summary>What are you moving? (optional)</summary>
+    <p class="hint">Helps providers quote accurately. Rough numbers are fine.</p>
+    <div class="inv-counts">${INVENTORY_COUNTS.map(([k,l])=>`<div class="inv-row"><label for="inv-${k}">${l}</label><div class="inv-stepper"><button type="button" class="inv-btn" data-inv-step="-1" data-inv-key="${k}" aria-label="Fewer ${l.toLowerCase()}">−</button><input id="inv-${k}" type="number" inputmode="numeric" min="0" max="999" step="1" value="${Number(inv[k])||0}" data-inv="${k}"><button type="button" class="inv-btn" data-inv-step="1" data-inv-key="${k}" aria-label="More ${l.toLowerCase()}">+</button></div></div>`).join("")}</div>
+    <fieldset class="inv-special"><legend class="svc-label">Special items</legend><div class="svc-checklist">${INVENTORY_SPECIAL.map(([k,l])=>`<label class="svc-item"><input type="checkbox" data-inv-special value="${k}" ${(inv.special||[]).includes(k)?"checked":""}><span>${l}</span></label>`).join("")}</div></fieldset>
+    <p class="inv-estimate" id="inv-estimate" aria-live="polite"></p>
+  </details>`;
+}
+function collectInventory(root){
+  const inv = {};
+  INVENTORY_COUNTS.forEach(([k])=>{ const n=Math.min(999,Math.max(0,Math.round(Number(root.querySelector(`#inv-${k}`)?.value)||0))); if(n) inv[k]=n; });
+  const special=[...root.querySelectorAll("[data-inv-special]:checked")].map(i=>i.value);
+  if(special.length) inv.special=special;
+  return hasInventory(inv) ? inv : null;
+}
+function initInventory(root){
+  const out = root.querySelector("#inv-estimate");
+  const update = ()=>{ const inv=collectInventory(root); out.textContent = inv ? `Estimated load: ${inventoryLoadText(inv).replace("About","about")}` : ""; };
+  root.querySelectorAll("[data-inv-step]").forEach(b=>b.addEventListener("click",()=>{
+    const i=root.querySelector(`#inv-${b.dataset.invKey}`); i.value=Math.min(999,Math.max(0,(Number(i.value)||0)+Number(b.dataset.invStep))); update();
+  }));
+  root.querySelectorAll("[data-inv],[data-inv-special]").forEach(i=>i.addEventListener(i.type==="checkbox"?"change":"input",update));
+  update();
+}
 const SIZES = {studio:["Studio",0.6],"1br":["1 bedroom",0.8],"2br":["2 bedrooms",1],"3br":["3 bedrooms",1.35],"4br":["4+ bedrooms",1.7]};
 
 // scale: which factors affect price. offset: days relative to move date (negative = before).
@@ -1356,7 +1409,7 @@ async function refreshProviderRequests(force=false,paint=true){
 function requestAccess(move,key){return ACCESS[move?.[key]||'ground']?.[0]||'Not specified';}
 function providerRequestCard(row){const move=row.move_snapshot||{};return `<article class="service-request"><div class="provider-card-head provider-job-heading"><div><p class="provider-job-eyebrow">${esc(row.service_type)} · ${requestCode(row)}</p><h3>${fmtLong(parseDate(row.service_date))}</h3><p class="hint">${esc(WINDOWS[row.time_window]||row.time_window)}</p></div><div class="provider-job-price"><strong>${serviceCurrency(Number(row.service_price))}</strong><span data-request-status="${row.status}" class="badge ${['accepted','completed'].includes(row.status)?'':'pending'}">${providerStatusLabel(row.status)}</span></div></div>
  <div class="provider-job-route"><div><span>Customer</span><strong>${esc(row.customer_name)}</strong></div><div><span>From</span><strong>${esc(move.from)}</strong></div><div><span>To</span><strong>${esc(move.to)}</strong></div></div>
- <details class="provider-job-details"><summary>View details</summary><dl class="request-details"><div><dt>Request reference</dt><dd>${requestCode(row)}</dd></div><div><dt>Move date and home size</dt><dd>${fmtDate(parseDate(move.date))} · ${esc(SIZES[move.size]?.[0]||move.size)}</dd></div><div><dt>Current home access</dt><dd>${esc(requestAccess(move,'accessFrom'))}</dd></div><div><dt>New home access</dt><dd>${esc(requestAccess(move,'accessTo'))}</dd></div></dl>
+ <details class="provider-job-details"><summary>View details</summary><dl class="request-details"><div><dt>Request reference</dt><dd>${requestCode(row)}</dd></div><div><dt>Move date and home size</dt><dd>${fmtDate(parseDate(move.date))} · ${esc(SIZES[move.size]?.[0]||move.size)}</dd></div><div><dt>Current home access</dt><dd>${esc(requestAccess(move,'accessFrom'))}</dd></div><div><dt>New home access</dt><dd>${esc(requestAccess(move,'accessTo'))}</dd></div>${inventoryFacts(move.inventory)}</dl>
  <div class="provider-job-scope"><div><h4>Service includes</h4><p>${esc(row.service_includes)}</p></div>${row.notes?`<div><h4>Customer notes</h4><p>${esc(row.notes)}</p></div>`:''}</div>${mediaGallery(row.id,'Customer photos and video')}
  <p class="request-contact"><strong>Contact:</strong> <a href="mailto:${esc(row.customer_email)}">${esc(row.customer_email)}</a> · <a href="tel:${esc((row.customer_phone||'').replace(/[^0-9+]/g,''))}">${esc(row.customer_phone)}</a></p></details>
  ${row.decision_reason?`<p><strong>Decline reason:</strong> ${esc(row.decision_reason)}</p>`:''}
@@ -1590,12 +1643,14 @@ function renderSetup(){
           <div class="field"><label for="accessTo">New home access</label><select id="accessTo">${Object.entries(ACCESS).map(([k,v])=>`<option value="${k}" ${k===(m.accessTo||"ground")?"selected":""}>${v[0]}</option>`).join("")}</select></div>
         </div>
         </details>
+        ${inventoryFields(m.inventory)}
         <button class="btn btn-coral" type="submit">${state.move ? "Update my plan" : "Build my plan"}</button>
         ${state.move ? `<p class="fineprint"><button type="button" class="clear" id="cancel">Back to my plan</button></p>` : `<p class="fineprint">You can update your move details anytime.</p>`}
       </form>
     </div>
   </section>`;
   const form = document.getElementById("setup");
+  initInventory(form);
   form.querySelectorAll("input,select,textarea").forEach(i=>i.addEventListener(i.tagName==="SELECT"?"change":"input",()=>{ const f=i.closest(".field"); if(!f || !f.querySelector(".err")) return; f.classList.remove("bad"); f.querySelector(".err").textContent=""; }));
   form.addEventListener("submit", e=>{
     e.preventDefault();
@@ -1609,6 +1664,7 @@ function renderSetup(){
     const first = Object.keys(errs)[0];
     if(first){ document.getElementById(first).focus(); return; }
     state.move = {from:v("from"), to:v("to"), date:v("date"), size:v("size"), accessFrom:v("accessFrom"), accessTo:v("accessTo")};
+    const inventory = collectInventory(form); if(inventory) state.move.inventory = inventory;
     save(); renderPlan(); window.scrollTo(0,0);
   });
   const c = document.getElementById("cancel");
@@ -1853,7 +1909,7 @@ async function confirmBookings(){
   const args={p_plan_id:state.requestPlanId,p_batch_id:state.pendingSubmission.id,p_move:{...state.move},p_requests:items,p_phone:phone};
   clearTimeout(saveTimer);requestSubmitting=true;busy(button,true,'Sending requests…');
   try{
-    const {data,error}=await sb.rpc('moveme_submit_requests',args);if(error)throw error;
+    const {data,error}=await sb.rpc('moveme_submit_requests_v2',args);if(error)throw error;
     if(uid!==state.uid||generation!==requestGeneration)return;
     if(!Array.isArray(data)||data.length!==ready.length)throw Error('Could not confirm that your requests were saved. Refresh requests before trying again.');
     customerRequestRevision++;state.user.phone=phone;
@@ -1931,7 +1987,7 @@ function savedRequestDetails(task,cost){
   return `<div class="shortlist saved-request" id="sl-${task.id}">
     <section class="saved-request-card" aria-label="Saved request with ${esc(provider.name)}">
       <div class="saved-request-heading"><span class="saved-provider-mark" aria-hidden="true">${esc(provider.name.trim().slice(0,1).toUpperCase())}</span><div class="saved-provider-copy"><h3>${esc(provider.name)}</h3><p>${esc(provider.desc)}</p></div><div class="saved-request-price">${serviceCurrency(booking.price)}<span>Service price</span></div></div>
-      <dl class="saved-request-facts"><div><dt>Service date</dt><dd>${fmtLong(parseDate(booking.date))}</dd></div><div><dt>Time window</dt><dd>${esc(WINDOWS[booking.win]||booking.win)}</dd></div>${move?`<div><dt>Moving from</dt><dd>${esc(move.from)}</dd></div><div><dt>Moving to</dt><dd>${esc(move.to)}</dd></div><div><dt>Current home access</dt><dd>${esc(requestAccess(move,'accessFrom'))}</dd></div><div><dt>New home access</dt><dd>${esc(requestAccess(move,'accessTo'))}</dd></div>`:''}</dl>
+      <dl class="saved-request-facts"><div><dt>Service date</dt><dd>${fmtLong(parseDate(booking.date))}</dd></div><div><dt>Time window</dt><dd>${esc(WINDOWS[booking.win]||booking.win)}</dd></div>${move?`<div><dt>Moving from</dt><dd>${esc(move.from)}</dd></div><div><dt>Moving to</dt><dd>${esc(move.to)}</dd></div><div><dt>Current home access</dt><dd>${esc(requestAccess(move,'accessFrom'))}</dd></div><div><dt>New home access</dt><dd>${esc(requestAccess(move,'accessTo'))}</dd></div>${inventoryFacts(move.inventory)}`:''}</dl>
       ${booking.notes?`<div class="saved-request-note"><h4>Your notes</h4><p>${esc(booking.notes)}</p></div>`:''}
       ${booking.requestId?mediaGallery(booking.requestId,'Your photos and video'):''}
       ${booking.decisionReason?`<div class="saved-request-note saved-decline"><h4>Why this request was declined</h4><p>${esc(booking.decisionReason)}</p></div>`:''}
@@ -2022,7 +2078,7 @@ function renderPlan(){
   </div></header>
   <section class="hero"><div class="wrap">
     <p class="dashboard-eyebrow">Your move overview</p><h1 class="route"><span>${esc(m.from)}</span><span class="arrow" aria-label="to">→</span><span class="to">${esc(m.to)}</span></h1>
-    <div class="route-meta">${fmtLong(move)} · ${SIZES[m.size][0]} · ${accessText(m)}</div>
+    <div class="route-meta">${fmtLong(move)} · ${SIZES[m.size][0]} · ${accessText(m)}${hasInventory(m.inventory)?` · Estimated load: ${inventoryLoadText(m.inventory).replace("About","about")}`:""}</div>
     <div class="stats">
       <div class="stat"><div class="k">Until move day</div>${moveLabel}</div>
       <div class="stat budget">
